@@ -1,0 +1,350 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Alarm Clock</title>
+  <style>
+    body {
+      background-repeat: repeat;
+      animation: moveBg 10s linear infinite;
+      background-size: cover;
+      background-position: center;
+      font-family: Arial, sans-serif;
+      margin: 0;
+      height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+    #videoBg {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      width: auto;
+      height: auto;
+      min-width: 100%;
+      min-height: 100%;
+      transform: translate(-50%, -50%);
+      z-index: -1;
+      object-fit: cover;
+    }
+
+    .alarm-box {
+      background: rgba(0,0,0,0.6);
+      padding: 20px;
+      border-radius: 15px;
+      color: white;
+      text-align: center;
+      max-width: 500px;
+      width: 500%;
+
+      user-select: none;
+    }
+
+    input, select, button {
+      padding: 10px;
+      margin: 5px;
+      font-size: 16px;
+      border-radius: 8px;
+      border: none;
+      color: black;
+      background-color: white;
+      user-select: text;
+    }
+
+    #alarmList {
+      margin-top: 20px;
+      user-select: none;
+    }
+
+    .alarm-item {
+      background: rgba(255,255,255,0.1);
+      padding: 10px;
+      margin: 10px 0;
+      border-radius: 8px;
+      display: flex;
+      flex-direction: column;
+      color: white;
+    }
+
+    /* Strikethrough style when completed */
+    .alarm-item.completed .alarm-time,
+    .alarm-item.completed .alarm-label,
+    .alarm-item.completed select,
+    .alarm-item.completed input[type="text"] {
+      text-decoration: line-through;
+      opacity: 0.6;
+      pointer-events: none; /* disable interaction */
+    }
+
+    .alarm-controls {
+      margin-top: 8px;
+      display: flex;
+      justify-content: center;
+      gap: 6px;
+    }
+
+    .popup-alert {
+      position: fixed;
+      top: 0; left: 0;
+      right: 0; bottom: 0;
+      background: rgba(0,0,0,0.7);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+      visibility: hidden;
+    }
+
+    .popup-alert.active {
+      visibility: visible;
+    }
+
+    .popup-content {
+      background: white;
+      color: black;
+      padding: 30px;
+      border-radius: 12px;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <!-- Video background -->
+  <video id="videoBg" autoplay muted loop playsinline>
+    <source src="D:\ALL\ai.mp4" type="video/mp4">
+    Your browser does not support the video tag.
+  </video>
+  <div class="alarm-box">
+    <h1>Alarm Clock</h1>
+    <div>
+      <input type="date" id="alarmDate" />
+      <select id="hour"></select>
+      <select id="minute"></select>
+      <select id="ampm">
+        <option>AM</option>
+        <option>PM</option>
+      </select>
+    </div>
+    <input type="text" id="task" placeholder="Enter your task" spellcheck="false" autocomplete="off" />
+    <button onclick="addAlarm()">Add Alarm</button>
+    <div id="alarmList"></div>
+  </div>
+
+  <div class="popup-alert" id="popupAlert" role="alertdialog" aria-modal="true" aria-labelledby="popupMessage">
+    <div class="popup-content">
+      <h2 id="popupMessage"></h2>
+      <button onclick="stopAlarm()">Stop Alarm</button>
+    </div>
+  </div>
+
+  <audio id="alarmSound" src="https://actions.google.com/sounds/v1/alarms/alarm_clock.ogg" preload="auto"></audio>
+
+  <script>
+    const hourSelect = document.getElementById('hour');
+    const minuteSelect = document.getElementById('minute');
+    const ampmSelect = document.getElementById('ampm');
+    const alarmDateInput = document.getElementById('alarmDate');
+    const alarmList = document.getElementById('alarmList');
+    const alarmSound = document.getElementById('alarmSound');
+    const popupAlert = document.getElementById('popupAlert');
+    const popupMessage = document.getElementById('popupMessage');
+    let alarms = [];
+
+    // Populate hour and minute select options
+    for (let h = 1; h <= 12; h++) {
+      hourSelect.innerHTML += `<option>${h}</option>`;
+    }
+    for (let m = 0; m < 60; m++) {
+      let mm = m.toString().padStart(2, '0');
+      minuteSelect.innerHTML += `<option>${mm}</option>`;
+    }
+
+    function get24Hour(h, ampm) {
+      h = parseInt(h, 10);
+      return ampm === "PM" ? (h === 12 ? 12 : h + 12) : (h === 12 ? 0 : h);
+    }
+
+    function showPopup(message) {
+      popupMessage.textContent = message;
+      popupAlert.classList.add('active');
+    }
+
+    function stopAlarm() {
+      alarmSound.pause();
+      alarmSound.currentTime = 0;
+      alarmSound.loop = false;
+      popupAlert.classList.remove('active');
+    }
+
+    function scheduleAlarm(id, date, hour, minute, ampm, label) {
+      const hour24 = get24Hour(hour, ampm);
+      const alarmTime = new Date(date);
+      alarmTime.setHours(hour24, minute, 0, 0);
+
+      const now = new Date();
+      if (alarmTime <= now) {
+        // If alarm time already passed, set for next day
+        alarmTime.setDate(alarmTime.getDate() + 1);
+      }
+
+      const timeToAlarm = alarmTime - now;
+
+      console.log(`Alarm set for: ${alarmTime}, Time until alarm: ${timeToAlarm}ms`);
+
+      return setTimeout(() => {
+        showPopup(label);
+        alarmSound.loop = true;
+        alarmSound.play();
+      }, timeToAlarm);
+    }
+
+    function addAlarm() {
+      const date = alarmDateInput.value;
+      const hour = hourSelect.value;
+      const minute = minuteSelect.value;
+      const ampm = ampmSelect.value;
+      const label = document.getElementById('task').value.trim() || "Reminder";
+
+      if (!date) {
+        alert("Please select a date.");
+        return;
+      }
+
+      const id = Date.now();
+      const timeout = scheduleAlarm(id, date, hour, parseInt(minute, 10), ampm, label);
+      alarms.push({ id, timeout });
+
+      createAlarmElement(id, date, hour, minute, ampm, label);
+
+      document.getElementById('task').value = '';
+      alarmDateInput.value = ''; // Clear the date input
+    }
+
+    function createAlarmElement(id, date, hour, minute, ampm, label) {
+      const div = document.createElement('div');
+      div.className = 'alarm-item';
+      div.id = `alarm-${id}`;
+      div.innerHTML = `
+        <div style="display:flex; align-items:center; justify-content:center; gap:4px;">
+          <input type="date" id="date-${id}" value="${date}" disabled />
+          <select id="hour-${id}" disabled></select>
+          <span>:</span>
+          <select id="minute-${id}" disabled></select>
+          <select id="ampm-${id}" disabled></select>
+          <input type="text" id="task-${id}" value="${label}" disabled
+            style="margin-left:10px; padding:4px 8px; border-radius:6px; min-width:140px;" />
+        </div>
+        <div class="alarm-controls">
+          <button id="edit-${id}">Modify</button>
+          <button id="remove-${id}">Remove</button>
+          <button id="complete-${id}">Task Complete</button>
+        </div>`;
+      
+      alarmList.appendChild(div);
+
+      fillSelectOptions(`hour-${id}`, 1, 12, hour);
+      fillSelectOptions(`minute-${id}`, 0, 59, minute);
+      fillSelectOptions(`ampm-${id}`, 0, 1, null, ['AM', 'PM'], ampm);
+
+      document.getElementById(`edit-${id}`).onclick = () => toggleEdit(id);
+      document.getElementById(`remove-${id}`).onclick = () => removeAlarm(id);
+      document.getElementById(`complete-${id}`).onclick = () => toggleComplete(id);
+    }
+
+    function fillSelectOptions(selectId, start, end, selectedValue, labels = null, selectedText = null) {
+      const select = document.getElementById(selectId);
+      select.innerHTML = '';
+      for (let i = start; i <= end; i++) {
+        const option = document.createElement('option');
+        option.value = labels ? labels[i] : i.toString().padStart(2,'0');
+        option.textContent = labels ? labels[i] : i.toString().padStart(2,'0');
+        if (selectedText !== null) {
+          if (option.textContent === selectedText) option.selected = true;
+        } else {
+          if (option.value === selectedValue.toString()) option.selected = true;
+        }
+        select.appendChild(option);
+      }
+    }
+
+    function toggleEdit(id) {
+      const div = document.getElementById(`alarm-${id}`);
+      if (!div) return;
+      const hourSelect = document.getElementById(`hour-${id}`);
+      const minuteSelect = document.getElementById(`minute-${id}`);
+      const ampmSelect = document.getElementById(`ampm-${id}`);
+      const taskInput = document.getElementById(`task-${id}`);
+      const dateInput = document.getElementById(`date-${id}`);
+      const editBtn = document.getElementById(`edit-${id}`);
+      
+      const isEditing = !hourSelect.disabled;
+
+      if (!isEditing) {
+        // Enable editing
+        hourSelect.disabled = false;
+        minuteSelect.disabled = false;
+        ampmSelect.disabled = false;
+        taskInput.disabled = false;
+        dateInput.disabled = false;
+        taskInput.style.backgroundColor = 'white';
+        dateInput.style.backgroundColor = 'white';
+        editBtn.textContent = 'Save';
+      } else {
+        // Save changes
+        hourSelect.disabled = true;
+        minuteSelect.disabled = true;
+        ampmSelect.disabled = true;
+        taskInput.disabled = true;
+        dateInput.disabled = true;
+        taskInput.style.backgroundColor = 'transparent';
+        dateInput.style.backgroundColor = 'transparent';
+
+        // Reschedule alarm
+        clearTimeoutForId(id);
+
+        const newHour = parseInt(hourSelect.value, 10);
+        const newMinute = parseInt(minuteSelect.value, 10);
+        const newAmpm = ampmSelect.value;
+        const newLabel = taskInput.value.trim() || 'Reminder';
+        const newDate = dateInput.value;
+
+        const newTimeout = scheduleAlarm(id, newDate, newHour, newMinute, newAmpm, newLabel);
+
+        const alarmObj = alarms.find(a => a.id === id);
+        if (alarmObj) {
+          alarmObj.timeout = newTimeout;
+        }
+
+        editBtn.textContent = 'Modify';
+      }
+    }
+
+    function clearTimeoutForId(id) {
+      const alarmIndex = alarms.findIndex(a => a.id === id);
+      if (alarmIndex !== -1) {
+        clearTimeout(alarms[alarmIndex].timeout);
+        alarms.splice(alarmIndex, 1);
+      }
+    }
+
+    function removeAlarm(id) {
+      clearTimeoutForId(id);
+      const div = document.getElementById(`alarm-${id}`);
+      if(div) div.remove();
+    }
+
+    function toggleComplete(id) {
+      const div = document.getElementById(`alarm-${id}`);
+      if(div) div.classList.toggle('completed');
+      stopAlarm();
+    }
+
+    window.addEventListener('blur', stopAlarm);
+    window.addEventListener('keydown', e => {
+      if (e.key === 'Escape') stopAlarm();
+    });
+  </script>
+</body>
+</html>
